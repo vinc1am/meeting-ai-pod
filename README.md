@@ -3,7 +3,7 @@
 
 <br />
 <div align="center">
-  <a href="https://github.com/vinc1am/company-insight-llm">
+  <a href="https://github.com/vinc1am/meeting-ai-pod">
     <img src="static/img/icon.png" alt="Logo" width="100" height="100">
   </a>
 
