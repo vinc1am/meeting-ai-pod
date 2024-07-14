@@ -1,0 +1,13 @@
+[
+    {
+        "audio": "meeting_chi.mp3",
+        "path": "audio/meeting_chi.mp3",
+        "link": "https://raw.githubusercontent.com/vinc1am/meeting-ai-pod/main/audio/meeting_chi.mp3"
+    },
+    {
+        "audio": "meeting_en.mp3",
+        "path": "audio/meeting_en.mp3",
+        "link": "https://raw.githubusercontent.com/vinc1am/meeting-ai-pod/main/audio/meeting_en.mp3"
+    }
+]
+

@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meeting Assistant AI</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <link rel="stylesheet" href="static/styles.css">
+</head>
+
+<body>
+
+<div class="container">
+  <div class="phone-container">
+    <div id="content">
+
+
+
+      <div id="content-audiolist" class="content-div">
+          <div id="audio-list-container">
+              <ul id="uploaded-audiolist"></ul>
+              <div id="buttons">
+                  <button id="refreshButton">Refresh</button>
+                  <button id="transcribeButton" onclick="transcribeSpecificAudio()">Transcribe</button>
+              </div>
+          </div>
+      </div>
+
+
+      <div id="content-transcribe" class="content-div"> 
+        <div class="transcription_result"></div>
+        <div class="transcribe">
+        </div>
+      </div>
+
+      <div id="content-summarise" class="content-div"></div>
+
+      <div id="content-minutes" class="content-div"></div>
+
+      <div id="content-assistant" class="content-div">
+          <div class="assistant-chat-container">
+              <div class="assistant-chat">
+                  <div class="assistant-message assistant-left">
+                      <img src="./static/img/assistant_icon.png" alt="">
+                      <p>Good Morning! Please ask me any question regarding to the meeting minutes.</p>
+                  </div>
+              </div>
+          </div>
+          <div class="assistant-input-container">
+              <input type="text" class="assistant-text_input" placeholder="Ask AI Assistant about the meeting." required/>
+              <button class="assistant-submit_button">Send</button>
+          </div>
+      </div>
+
+
+    </div>
+    <ul class="tab-nav-container">
+        <li class="tab tab-green active" data-target="/audiolist">
+          <i class="fa fa-music fa-lg" aria-hidden="true"></i>
+          <p>Audio</p>
+        </li>
+        <li class="tab tab-green disabled" data-target="/transcribe">
+          <i class="fa fa-comments fa-lg" aria-hidden="true"></i>
+          <p>Transcript</p>
+        </li>
+        <li class="tab tab-green disabled" data-target="/summarise">
+          <i class="fa fa-list fa-lg" aria-hidden="true"></i>
+          <p>Summarise</p>
+        </li>
+        <li class="tab tab-green disabled" data-target="/minutes">
+          <i class="fa fa-pencil fa-lg" aria-hidden="true"></i>
+          <p>Minutes</p>
+        </li>
+
+        <li class="tab tab-green disabled" data-target="/assistant">
+          <i class="fa fa-user fa-lg" aria-hidden="true"></i>
+          <p>Assistant</p>
+        </li>
+    </ul>
+    
+  </div>
+</div>  
+
+<script>
+
+
+// =====================
+//    Tab Control
+// =====================
+
+function controlTabs(state) {
+    var tabs = document.querySelectorAll('.tab');
+    for (let i = 1; i < tabs.length; i++) { // start from 1 to exclude 'Upload' tab
+      if (state === 'upload') {
+        if (i === 1) { // index of 'Transcribe' is 1
+          tabs[i].classList.remove('disabled'); // only 'Transcribe' tab can be clicked
+        } else {
+          tabs[i].classList.add('disabled');
+        }
+      } else if (state === 'transcribe') {
+        tabs[i].classList.remove('disabled'); // all tabs (except 'Upload') can be clicked
+      }
+    }
+  }
+
+const tabBtn = document.querySelectorAll(".tab");
+const contentDivs = document.querySelectorAll(".content-div");
+
+// hide all divs initially
+contentDivs.forEach((div) => {
+    div.style.display = 'none';
+});
+
+// display the first content div initially
+document.getElementById("content-audiolist").style.display = 'flex';
+tabBtn[0].classList.add('active'); // Added this line to initally make first tab active.
+
+tabBtn.forEach((clickedTab) => {
+    clickedTab.addEventListener("click", function(evt) {
+        const target = clickedTab.getAttribute("data-target").substring(1);  // remove leading "/"
+
+        // Cancel action if the tab is disabled
+        if(clickedTab.classList.contains('disabled')) {
+            evt.preventDefault();
+            return;
+        }
+
+        // Check if user wants to upload new file
+        if(target === "upload"){
+              location.reload();
+              return; // stops here if OK clicked
+        }
+
+        // For other tabs
+        contentDivs.forEach((div) => {
+            div.style.display = 'none';
+        });
+        document.getElementById("content-" + target).style.display = 'flex';
+        tabBtn.forEach((tab) => {
+            tab.classList.remove("active");
+        });
+        clickedTab.classList.add("active");
+        const clickedTabBGColor = getComputedStyle(clickedTab).getPropertyValue('background-color');
+        document.querySelector(".phone-container").style.backgroundColor = clickedTabBGColor;
+    });
+});
+
+$(document).ready(function(){
+        $(".tab[data-target='/audiolist']").click(function() {
+
+            $(".tab[data-target='/assistant']").addClass("disabled");
+            $(".tab[data-target='/minutes']").addClass("disabled");
+            $(".tab[data-target='/summarise']").addClass("disabled");
+            $(".tab[data-target='/transcribe']").addClass("disabled");
+
+            // Active state for current tab
+            $('.tab').removeClass('active');
+            $(this).addClass('active');
+
+
+            // Reset the chat content
+            var chatDiv = document.querySelector(".assistant-chat");
+            chatDiv.innerHTML = `
+              <div class="assistant-message assistant-left">
+                <img src="./static/img/assistant_icon.png" alt="">
+                <p>Good Morning! Please ask me any question regarding to the meeting minutes.</p>
+              </div>
+            `;
+
+        });
+
+
+
+   });
+
+
+
+
+// =====================
+//    Audio List 
+// =====================
+document.addEventListener('DOMContentLoaded', function () {
+    showAudioList();
+});
+
+document.querySelector('.tab[data-target="/audiolist"]').addEventListener('click', function () {
+    showAudioList();
+});
+
+document.getElementById('refreshButton').addEventListener('click', function () {
+    showAudioList();
+});
+
+function showAudioList() {
+    // Hide all content divs
+    Array.from(document.getElementsByClassName('content-div')).forEach((div) => {
+        div.style.display = 'none';
+    });
+
+    // Show only 'content-audiolist' div
+    const uploadList = document.getElementById("content-audiolist");
+    if (uploadList) {
+        uploadList.style.display = 'block';
+    } else {
+        console.log("Element with ID: content-uploaded-list not found");
+    }
+
+    // Fetch the master list from backend
+    fetch('/load_audio_master_list')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Error: " + response.statusText);
+            }
+            return response.json();  
+        })
+        .then(data => {
+            const audioList = document.getElementById("uploaded-audiolist");
+            audioList.innerHTML = '';  // clear the list
+
+            data.forEach((item, index) => {
+                const li = document.createElement("li");
+                li.classList.add('clickable-audio');
+                li.setAttribute("data-audio", item.audio);
+                li.setAttribute("data-path", item.path);
+                li.setAttribute("data-link", item.link);
+
+                const audioText = document.createElement("span");
+                audioText.textContent = item.audio;
+
+                const audioPlayer = document.createElement("audio");
+                audioPlayer.setAttribute("controls", "controls");
+                audioPlayer.setAttribute("src", item.link);
+
+                li.appendChild(audioText);
+                li.appendChild(audioPlayer);
+
+                li.addEventListener('click', function () {
+                    document.querySelectorAll('.clickable-audio').forEach(el => el.classList.remove('selected'));
+                    li.classList.add('selected');
+                    // Store the selected audio data for later use
+                    li.setAttribute('data-selected', 'true');
+                });
+
+                audioList.appendChild(li);
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching audio list:', error);
+        });
+}
+
+
+
+
+// =====================
+//     Transcribe 
+// =====================
+
+function getSelectedAudioLink() {
+    const selectedAudio = document.querySelector('.clickable-audio.selected');
+    if (selectedAudio) {
+        return selectedAudio.getAttribute('data-link');
+    }
+    return null;
+}
+
+function getSelectedAudio() {
+    const selectedAudio = document.querySelector('.clickable-audio.selected');
+    if (selectedAudio) {
+        return selectedAudio.getAttribute('data-audio');
+    }
+    return null;
+}
+
+function transcribeSpecificAudio() {
+    const audioLink = getSelectedAudioLink();
+    if (audioLink) {
+        $("#transcribeButton").prop('disabled', true);  // Disable the button
+        $("#transcribeButton").addClass("onclic", 250);
+        startTranscription(audioLink);
+    } else {
+        alert("No audio selected!");
+    }
+}
+
+function startTranscription(audioLink) {
+    // Disable buttons
+    $("#loadHistoryButton").prop('disabled', true);
+    $("#transcribeButton").prop('disabled', true);
+    $(".tab").addClass("disabled");
+
+    $.ajax({
+        type: 'POST',
+        url: '/start_transcription',
+        data: JSON.stringify({
+            'audio_link': audioLink
+        }),
+        contentType: "application/json; charset=utf-8",
+        success: function(response) {
+            onTranscriptionSuccess(response);
+        },
+        error: function(error) {
+            console.log("Error occurred: ", error);
+            alert('Error occurred during transcription.');
+            location.reload();
+        }
+    });
+}
+
+
+
+// =====================
+//        Result 
+// =====================
+function onTranscriptionSuccess(response) {
+    console.log("Transcription response:", response); // Log the entire response
+
+    $("#progressText").text("Done.");
+    $("#transcribeButton").prop('disabled', false);
+    $("#loadHistoryButton").prop('disabled', false);
+    $(".tab").removeClass("disabled");
+
+    // Store the transcription list globally
+    window.transcriptionList = response.transcription;
+
+    // Transcript
+    let transcriptionList = response.transcription;
+    console.log("Transcription list:", transcriptionList); // Log the transcription list
+
+    if (Array.isArray(transcriptionList)) {
+        var contentDiv = $('.transcription_result');
+        contentDiv.empty(); // Clear previous content
+
+        transcriptionList.forEach(item => {
+            var minutes = Math.floor(item.timestamp_in_seconds / 60);
+            var seconds = Math.floor(item.timestamp_in_seconds % 60);
+
+            var header = `Speaker ${item.speaker}`;
+            var timestamp = `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}]`;
+            var msg = item.display;
+
+            // Decide the class according to speaker
+            var cssClass = item.speaker % 2 === 0 ? "message speaker-0" : "message speaker-1";
+
+            var messageDiv = $('<div></div>').addClass(cssClass).appendTo(contentDiv);
+            var headerDiv = $('<p class="header"></p>').text(header).appendTo(messageDiv);
+            $('<span class="timestamp"></span>').text(timestamp).appendTo(headerDiv);
+            $('<p class="content"></p>').text(msg).appendTo(messageDiv);
+        });
+    } else {
+        console.error("Transcription list is not an array.");
+    }
+
+    // Summary
+    document.getElementById("content-summarise").innerHTML = response.summary.html;
+
+    // Minutes
+    document.getElementById("content-minutes").innerHTML = response.minutes.html;
+}
+
+
+
+
+
+
+
+
+
+// =====================
+//       Assistant 
+// =====================
+
+document.addEventListener('DOMContentLoaded', (event) => {
+    const inputField = document.querySelector(".assistant-text_input");
+    const submitButton = document.querySelector(".assistant-submit_button");
+
+    async function sendMessage() {
+        // disable the input field and button
+        inputField.disabled = true;
+        submitButton.disabled = true;
+
+        try {
+            // Get the transcription list from the global variable or state
+            const transcriptionList = window.transcriptionList || [];
+
+            const result = await fetch('/sendMessage', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    speaker: 'User', 
+                    message: inputField.value,
+                    transcription_list: transcriptionList  // Include the transcription list
+                })
+            });
+
+            inputField.value = ''; // Clear the input field
+            await getChatHistory(); // Update chat after sending a message
+        } catch (error) {
+            console.error("Error:", error);
+        } finally {
+            // re-enable the input field and button
+            inputField.disabled = false;
+            submitButton.disabled = false;
+        }
+    }
+
+    async function getChatHistory() {
+        try {
+            const response = await fetch('/getChatHistory');
+            const chatHistory = await response.json();
+
+            // Clear the previous chat UI first
+            const chatContainer = document.querySelector(".assistant-chat");
+            const scroll_chatContainer = document.querySelector(".assistant-chat-container");
+            chatContainer.innerHTML = "";
+
+            // Loop through the chat history and append each message to the UI
+            chatHistory.forEach(messageData => {
+                const messageElement = document.createElement("div");
+
+                if (messageData.speaker === 'User') {
+                    messageElement.className = "assistant-message assistant-right";
+                    messageElement.innerHTML = `
+                        <p>${messageData.message}</p>
+                    `;
+                } else {
+                    messageElement.className = "assistant-message assistant-left";
+                    messageElement.innerHTML = `
+                        <img src="./static/img/assistant_icon.png" alt="">
+                        <p>${messageData.message}</p>
+                    `;
+                }
+
+                chatContainer.appendChild(messageElement);
+                
+                // Auto scroll to bottom on new message
+                scroll_chatContainer.scrollTop = scroll_chatContainer.scrollHeight;
+
+                // Log the message data to the console
+                console.log(`${messageData.speaker}: ${messageData.message}`);
+            });
+
+        } catch (error) {
+            console.error("Error:", error);
+        }
+    }
+
+    // Send message when the enter key is pressed in the text input field
+    inputField.addEventListener('keydown', function(e) {
+        if (e.code === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+
+            // Before sending the message, check if the input field is not empty and not disabled
+            if (!inputField.disabled && inputField.value.trim() !== '') {
+                sendMessage();
+            }
+        }
+    });
+
+    // Send message when the submit button is clicked
+    submitButton.addEventListener('click', function() {
+        // Before sending the message, check if the input field is not empty and not disabled
+        if (!inputField.disabled && inputField.value.trim() !== '') {
+            sendMessage();
+        }
+    });
+});
+
+
+
+
+</script>
+
+
+</body>
+</html>
